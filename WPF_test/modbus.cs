@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO.Ports;
 
-class Modbus_Master
+internal class Modbus_Master
 {
     public SerialPort _serialPort = new SerialPort();
 
@@ -10,6 +10,36 @@ class Modbus_Master
         _serialPort.PortName = name;
         _serialPort.StopBits = bits;
         _serialPort.Parity = parity;
+        _serialPort.DataReceived += new SerialDataReceivedEventHandler(DataReceivedHandler);
+        _serialPort.ErrorReceived += new SerialErrorReceivedEventHandler(ErrorReceivedHandler);
+
+    }
+
+    public class Counters_Errors
+    {
+        public int errors;
+        private int crc;
+        private int parity;
+        private int time_out;
+        private int Frame;
+        private int Overrun;
+        private int RXOver;
+        private int RXParity;
+        private int TXFull;
+    };
+     
+    //public Counters_Errors counters_errors = new Counters_Errors();
+
+
+    private static void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
+    {
+        
+    }
+
+    private static void ErrorReceivedHandler(object sender, SerialErrorReceivedEventArgs e)
+    {
+       
+
     }
 
     public void Write_serial_data(byte[] data,int size )
@@ -25,13 +55,7 @@ class Modbus_Master
         _serialPort.Write(data, 0, size);
     }
 
-    public void Delay(int del)
-    {
-        while(del > 0)
-        {
-            del--;
-        }
-    }
+
 }
 
 
