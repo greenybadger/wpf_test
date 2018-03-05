@@ -12,7 +12,7 @@
                 <RowDefinition Height="100"/>
                 <RowDefinition />
             </Grid.RowDefinitions>
-            <Button Grid.Row="0" Content="Test" Width="100" Height="50" />
+            <Button Grid.Row="0" Content="Test123" Width="100" Height="50" />
 
             <Grid Grid.Row="1">
                 <Grid>
