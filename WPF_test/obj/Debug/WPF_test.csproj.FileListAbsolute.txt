@@ -27,3 +27,4 @@ D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.csproj.GenerateResource
 D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.csproj.CoreCompileInputs.cache
 D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.exe
 D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.pdb
+D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.csprojResolveAssemblyReference.cache
