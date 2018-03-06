@@ -33,7 +33,6 @@ namespace WPF_test
             master.Serial_port_init("COM3",StopBits.One, Parity.None);
 
             
-
             /*for(; ; )
             {
                 master.Write_serial_data(data, data.Length);

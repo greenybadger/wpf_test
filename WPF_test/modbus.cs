@@ -5,6 +5,20 @@ internal class Modbus_Master
 {
     public SerialPort _serialPort = new SerialPort();
 
+
+    //1- Defie delegate
+    public delegate void FirstByteReceivedEventHandler(object sender, EventArgs args);
+    //2- Define event
+    public event FirstByteReceivedEventHandler FirstByteReceived;
+    //3 - Event  rise. .NET recommendation methotd should be protected virtual void, starts with On....
+    protected virtual void OnFirstByteReceives()
+    {
+        if(FirstByteReceived != null)
+        {
+
+        }
+    }
+
     public void Serial_port_init(string name, StopBits bits, Parity parity)
     {
         _serialPort.PortName = name;
