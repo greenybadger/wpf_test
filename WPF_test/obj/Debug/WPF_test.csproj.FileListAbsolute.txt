@@ -28,13 +28,13 @@ D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.csproj.CoreCompileInput
 D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.exe
 D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.pdb
 D:\Repos\github\wpf\wpf_test\WPF_test\obj\Debug\WPF_test.csprojResolveAssemblyReference.cache
-C:\github\wpf_test\WPF_test\bin\Debug\WPF_test.exe.config
-C:\github\wpf_test\WPF_test\bin\Debug\WPF_test.exe
-C:\github\wpf_test\WPF_test\bin\Debug\WPF_test.pdb
 C:\github\wpf_test\WPF_test\obj\Debug\MainWindow.g.cs
 C:\github\wpf_test\WPF_test\obj\Debug\App.g.cs
 C:\github\wpf_test\WPF_test\obj\Debug\WPF_test_MarkupCompile.cache
 C:\github\wpf_test\WPF_test\obj\Debug\WPF_test_MarkupCompile.lref
+C:\github\wpf_test\WPF_test\bin\Debug\WPF_test.exe.config
+C:\github\wpf_test\WPF_test\bin\Debug\WPF_test.exe
+C:\github\wpf_test\WPF_test\bin\Debug\WPF_test.pdb
 C:\github\wpf_test\WPF_test\obj\Debug\MainWindow.baml
 C:\github\wpf_test\WPF_test\obj\Debug\WPF_test.g.resources
 C:\github\wpf_test\WPF_test\obj\Debug\WPF_test.Properties.Resources.resources
@@ -42,4 +42,3 @@ C:\github\wpf_test\WPF_test\obj\Debug\WPF_test.csproj.GenerateResource.Cache
 C:\github\wpf_test\WPF_test\obj\Debug\WPF_test.csproj.CoreCompileInputs.cache
 C:\github\wpf_test\WPF_test\obj\Debug\WPF_test.exe
 C:\github\wpf_test\WPF_test\obj\Debug\WPF_test.pdb
-C:\github\wpf_test\WPF_test\obj\Debug\WPF_test.csprojResolveAssemblyReference.cache

@@ -2,7 +2,7 @@
 using System.IO.Ports;
 using System.Collections.Generic;
 
-class Modbus_Master
+public class Modbus_Master
 {
     public SerialPort _serialPort = new SerialPort();
 
@@ -88,6 +88,7 @@ class Modbus_Master
         byte[] request_data; //Set by constructor
         byte[] respond_data; //Set by constructor
  
+       
         int sys_tick; //Set by constructor
         int time_out; //Set by constructor
    
@@ -165,13 +166,32 @@ class Modbus_Master
         return (byte) (data>>8);
     }
 
-
-
-
-    Queue<byte> qRX_data = new Queue<byte>();
-    private static void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
+    public class RxDataReceivedEventArgs : EventArgs
     {
-        
+        public string Rx_Data { get; set; }
+    }
+    
+    public event EventHandler<RxDataReceivedEventArgs> RxDataReceived;
+
+    protected virtual void OnRxDataReceived(RxDataReceivedEventArgs args) //Rise event
+    {
+        if(RxDataReceived != null) //check if thera ara subscribers
+        {
+            RxDataReceived(this, args); //Rise event
+        }
+
+    }
+
+    static Queue<string> qRX_data = new Queue<string>();
+
+    private void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
+    {
+        SerialPort sp = new SerialPort();
+        sp = (SerialPort) sender;
+        string data = sp.ReadExisting();
+        qRX_data.Enqueue(data);
+
+        OnRxDataReceived(new RxDataReceivedEventArgs(){Rx_Data = data});
     }
 
     private static void ErrorReceivedHandler(object sender, SerialErrorReceivedEventArgs e)
@@ -181,6 +201,7 @@ class Modbus_Master
 
     public void Write_serial_data(byte[] data,int size )
     {
+         
         if(_serialPort.IsOpen)
         {
 
