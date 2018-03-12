@@ -83,7 +83,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Modbus.cs" />
+    <Compile Include="Modbus_Master.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>

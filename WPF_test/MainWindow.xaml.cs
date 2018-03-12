@@ -13,9 +13,11 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows.Threading;
 
 using System.IO.Ports;
+using System.Runtime.Remoting.Messaging;
 
 
 namespace WPF_test
@@ -25,7 +27,7 @@ namespace WPF_test
     /// </summary>
     public partial class MainWindow : Window
     {
-        Modbus_Master master = new Modbus_Master();
+        public Modbus modbus = new Modbus();
 
         public MainWindow()
         {
@@ -33,13 +35,24 @@ namespace WPF_test
            
             Trace.WriteLine("Program Started");
          
-           string[] ports = SerialPort.GetPortNames();
+           var ports = SerialPort.GetPortNames();
             
-            Logger logger = new Logger();
+         
+            modbus.RxDataReceived += OnRxDataReceived;
 
-            master.RxDataReceived += logger.OnRxDataReceived;
+            modbus.Serial_port_init("COM1",StopBits.One, Parity.None);
 
-            master.Serial_port_init("COM1",StopBits.One, Parity.None);
+            TreeViewItem Main = new TreeViewItem()
+            {
+                Header = "Status"
+            };
+
+        
+            Main.Items.Add(MakeTreeViewItem("RX", modbus.Counters.BytesReceived));
+            Main.Items.Add(MakeTreeViewItem("TX", modbus.Counters.BytesTransmitted));
+
+            TvStatus.Items.Add((Main));
+
 
             /*for(; ; )
             {
@@ -48,31 +61,52 @@ namespace WPF_test
             }*/
         }
 
-      
-  
-
-        public class Logger
+        private TreeViewItem MakeTreeViewItem(string header, int value)
         {
+            var tw = new TreeViewItem();
+            var head = "";
 
-     
-            public static void log_update(TextBox tb, string txt)
-            {
-              tb.Text +=txt;
-            }
-   
-            public void OnRxDataReceived(object sender, Modbus_Master.RxDataReceivedEventArgs args)
-            {
-                
-                //log_update(tbLog , args.Rx_Data); // Invoke?
-                Trace.WriteLine("Logger subscibed event."+ args.Rx_Data);
-            }
+            head = header +": " + value.ToString();
+            tw.Header = head;
+
+            return tw;
         }
+        
+        /*public static void log_update(TextBox tb, string txt)
+        {
+            tb.Text +=txt;
+        }*/
 
+        public void OnRxDataReceived(object sender, Modbus.RxDataReceivedEventArgs args)
+        {
+            //log_update(tbLog , args.Rx_Data); // Invoke?
+
+            Trace.WriteLine("Event received."+ args.RxData);
+
+            TbLog.Dispatcher.Invoke(() =>
+            {
+                var timeStamp = DateTime.Now.ToString(CultureInfo.InvariantCulture);
+                TbLog.Text += timeStamp +" "+ args.RxData + Environment.NewLine;
+                TbLog.ScrollToEnd();
+            });
+        }
+        
         private void btn_test_Click(object sender, RoutedEventArgs e)
         {
-            byte[] data = new byte[] { 49 };
-            master.Write_serial_data(data, data.Length);
+            //byte[] data = new byte[] { 49 };
+            byte[] pingFrame = Modbus.ModbusPing(9, 0x0102ABCD);
+
+            Modbus.Request req = new Modbus.Request(pingFrame);
+
+            modbus.Write_serial_data(req.RequestData, pingFrame.Length);
         }
 
-    }
-}
+        private void BtnClearLog_Click(object sender, RoutedEventArgs e)
+        {
+            TbLog.Text = "Log cleared" + Environment.NewLine;
+        }
+
+    }//class
+
+    
+}//namespace

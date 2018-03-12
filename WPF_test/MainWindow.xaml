@@ -9,26 +9,34 @@
     <Grid>
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="25"/>
+                <RowDefinition Height="25" />
                 <RowDefinition />
             </Grid.RowDefinitions>
             <StackPanel Grid.Row="0" Orientation="Horizontal">
-                <Button Name="btn_test" Content="Test" Width="75" Click="btn_test_Click"  />
-                <TextBox Name="tb_input" Text="Input" Width="200"/>
-
+                <Button Name="BtnTest" Content="Test" Width="75" Click="btn_test_Click" />
+                <TextBox Name="TbInput" Text="Input" Width="200" />
             </StackPanel>
-
 
             <Grid Grid.Row="1">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="144*"/>
-                        <ColumnDefinition Width="115*"/>
-                        <ColumnDefinition Width="259*"/>
-                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition Height="30" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <TextBox Name="tbLog" Grid.Column="0" Text="Log0" Grid.ColumnSpan="2"/>
-                    <TextBox Grid.Column="2" Text="Log1"/>
+                        <TextBox Grid.Column="0" Name="TbLog" Text="Log0" VerticalScrollBarVisibility="Visible" />
+                        <TreeView Grid.Column="1" Name="TvStatus"/>
+                    </Grid>
+
+                    <StackPanel Grid.Row="1">
+                        <Button Content="Clear" Name="BtnClearLog" Click="BtnClearLog_Click" />
+                    </StackPanel>
+
                 </Grid>
 
             </Grid>
