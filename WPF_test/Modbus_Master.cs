@@ -2,6 +2,7 @@
 using System.IO.Ports;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Permissions;
 
 public class Modbus
 {
@@ -28,9 +29,9 @@ public class Modbus
         public int BytesReceived;
         public int BytesTransmitted;
         public int FramesOk;
+        public Err Errors = new Err();
         
-        public class Errors
-
+        public class Err
         {
             public int Cnt;
             public int Crc;
@@ -41,15 +42,60 @@ public class Modbus
             public int RxOver;
             public int RxParity;
             public int TxFull;
-        };
+            public int BytesMissing;
+            public int IdMissing;
+            public int FcMissing;
+        }
+    }
+
+
+    public bool IsFunctionCodeValid(byte fc)
+    {
+        bool isValid = true;
+
+        FunctionCode code = (FunctionCode) fc;
+
+
+        switch (code)
+        {
+            case FunctionCode.ReadRegisters:
+                break;
+            case FunctionCode.WriteSingleRegister:
+                break;
+            case FunctionCode.WriteMultiRegisters:
+                break;
+            case FunctionCode.Diagnostic:
+                break;
+            default:
+                isValid = false;
+                break;
+        }
+
+        return isValid;
     }
 
     public enum FunctionCode
     {
-        ReadRegisters = 0x03,
+        ReadRegisters = 0x03, //Request: ID + 0x03 + Respond:
         WriteSingleRegister = 0x06,
         WriteMultiRegisters = 0x0F,
         Diagnostic = 0x08
+    }
+
+
+    //Error respond Example: ID + ErrorCode + ExceptionCode + CRC_H + CRC_L = 5Bytes 
+    public enum ErrorCode
+    {
+        ErrorReadRegisters = 0x83,
+        ErrorWriteSingleRegister = 0x86,
+        WriteMultiRegisters = 0x8F
+    }
+
+    public enum ExceptionCodes
+    {
+        Function = 1,
+        DataAddress = 2,
+        DataValue = 3
     }
 
     static int get_system_tick()
@@ -87,7 +133,7 @@ public class Modbus
         public int _sysTick;
         public int _timeOut;
 
-        public byte[] RequestData;
+        public byte[] Buffer;
         public Respond respond;
 
 
@@ -95,7 +141,7 @@ public class Modbus
         {
             SlaveId = (int) data[0];
             Fc = (FunctionCode) data[1];
-            RequestData = data;
+            Buffer = data;
 
             int len = GetNumberOfBytesToRead(Fc);
             respond = new Respond(len);
@@ -118,13 +164,13 @@ public class Modbus
 
     public class Respond
     {
-        public byte[] RespondData;
+        public byte[] Buffer;
         public int Delay;
         public Flags Status;
 
         public Respond(int len)
         {
-            RespondData = new byte[len];
+            Buffer = new byte[len];
             Status = new Flags
             {
                 isHeaderDetected = false,
@@ -162,7 +208,7 @@ public class Modbus
                 bool isEq = true;
                 for(byte i = 0; i < data_byte.Length; i++)
                 {
-                    if (req.RequestData[i] != data_byte[i])
+                    if (req.Buffer[i] != data_byte[i])
                     {
                         isEq = false;
                         break;
@@ -179,22 +225,120 @@ public class Modbus
         }
         else
         {
-            str += "Not requosted data!";
+            str += "Not requested data!";
         }
 
-
-
-        OnRxDataReceived(new RxDataReceivedEventArgs { RxData = str });
+        OnRxDataReceived(new RxDataReceivedEventArgs { RxData = str }); //Rise event
     }
 
 
-    public enum ParseState
+    enum ParseState
     {
-        DetectSlaveId = 0,
-        DetectFc
+        isIdValid = 0,
+        isFcValid,
+        isPayLoadValid,
+        isCrcValid
     }
 
-    public bool ParseModbusData(ref SerialPort sp, ref Request req, ParseState state)
+
+    bool IsReadRegFrameValid()
+    {
+        bool isValid = false;
+
+        return isValid;
+    }
+
+    bool IsWriteSingleRegFrameValid()
+    {
+        bool isValid = false;
+
+        return isValid;
+    }
+
+    bool IsWriteMultiRegFrameValid()
+    {
+        bool isValid = false;
+
+        return isValid;
+    }
+
+    bool IsDiagnosticFrameValid()
+    {
+        bool isValid = false;
+
+        return isValid;
+    }
+
+    bool IsErrorCodeFrameValid()
+    {
+        bool isValid = false;
+
+        return isValid;
+    }
+
+
+    public bool IsFrameValid(Request req, byte[] dataIn)
+    {
+        bool isFrameValid = false;
+
+        int BytesExpecting = req.respond.Buffer.Length;
+        int BytesAvailable = dataIn.Length;
+
+
+        ParseState state = ParseState.isIdValid;
+        byte index = 0;
+
+        while (index < BytesAvailable)
+        {
+
+            if (BytesAvailable < BytesExpecting)
+            {
+                Counters.Errors.BytesMissing++;
+                return isFrameValid = false; //Error, Expected more bytes
+            }
+
+            switch (state)
+            {
+                case ParseState.isIdValid:
+                    if (req.SlaveId == dataIn[index])
+                    {
+                        state = ParseState.isFcValid; //Next state
+                        BytesExpecting--;
+                    }
+                    else
+                    {
+                        Counters.Errors.IdMissing++;
+                    }
+                    break;
+
+                case ParseState.isFcValid:
+                    if (IsFunctionCodeValid(dataIn[index]) == true) //TODO also it can be ErrorCode
+                    {
+                        state = ParseState.isFcValid; //Next state
+                        BytesExpecting--;
+                    }
+                    else
+                    {
+                        Counters.Errors.FcMissing++;
+                    }
+                    break;
+
+                case ParseState.isCrcValid:
+                    break;
+            }
+
+            index++;
+            if (BytesAvailable > 0)
+            {
+                BytesAvailable--;
+            }
+        }
+
+        return isFrameValid;
+
+    }
+
+    public bool ParseModbusData(ref SerialPort sp, ref Request req)
     {
         /*TODO
          * 1. If there are no requosted data, drop all revceived data. 
@@ -203,13 +347,9 @@ public class Modbus
          * 4. if FC dont match, start from 3. If SlaveID not found, drop all received data.
          * 5. Check if last byte is SlaveID, if yes next event start from 4.
          * 6. If SlaveID and FC detected, continue parsing data, by FC.
-         *
-         *
          */
 
         bool isFrameReady = false;
-
-
 
         return isFrameReady;
     }
@@ -296,6 +436,7 @@ public class Modbus
 
     private static void ErrorReceivedHandler(object sender, SerialErrorReceivedEventArgs e)
     {
+
 
     }
 

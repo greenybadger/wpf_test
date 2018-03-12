@@ -98,7 +98,7 @@ namespace WPF_test
 
             Modbus.Request req = new Modbus.Request(pingFrame);
 
-            modbus.Write_serial_data(req.RequestData, pingFrame.Length);
+            modbus.Write_serial_data(req.Buffer, pingFrame.Length);
         }
 
         private void BtnClearLog_Click(object sender, RoutedEventArgs e)
