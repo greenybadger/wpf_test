@@ -48,8 +48,8 @@ namespace WPF_test
             };
 
         
-            Main.Items.Add(MakeTreeViewItem("RX", modbus.Counters.BytesReceived));
-            Main.Items.Add(MakeTreeViewItem("TX", modbus.Counters.BytesTransmitted));
+            Main.Items.Add(MakeTreeViewItem("RX", Modbus.Counters.BytesReceived));
+            Main.Items.Add(MakeTreeViewItem("TX", Modbus.Counters.BytesTransmitted));
 
             TvStatus.Items.Add((Main));
 
@@ -93,8 +93,7 @@ namespace WPF_test
         
         private void btn_test_Click(object sender, RoutedEventArgs e)
         {
-            //byte[] data = new byte[] { 49 };
-            byte[] pingFrame = Modbus.ModbusPing(9, 0x0102ABCD);
+            byte[] pingFrame = Modbus.ModbusPing(9, 0x012345678); //Generate requestt buffer
 
             Modbus.Request req = new Modbus.Request(pingFrame);
 
