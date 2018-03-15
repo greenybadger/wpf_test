@@ -93,11 +93,13 @@ namespace WPF_test
         
         private void btn_test_Click(object sender, RoutedEventArgs e)
         {
-            byte[] pingFrame = Modbus.ModbusPing(9, 0x012345678); //Generate requestt buffer
+            byte[] frame;
+            //frame = Modbus.RequestPing(9, 0x012345678); // Ping frame
+            frame = Modbus.RequestReadRegisters(0x09, 0x0010, 1); // Read Single register frame
 
-            Modbus.Request req = new Modbus.Request(pingFrame);
+            Modbus.Request req = new Modbus.Request(frame); // Create Request. If Request gets respond, Log updated with Delay time.
 
-            modbus.Write_serial_data(req.Buffer, pingFrame.Length);
+            modbus.Write_serial_data(frame, frame.Length);
         }
 
         private void BtnClearLog_Click(object sender, RoutedEventArgs e)

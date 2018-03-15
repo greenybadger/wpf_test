@@ -3,7 +3,9 @@ using System.IO.Ports;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Security.Permissions;
+using System.Timers;
 
 public class Modbus
 {
@@ -38,6 +40,7 @@ public class Modbus
             public static int Parity;
             public static int TimeOut;
             public static int Frame;
+            public static int FrameSize;
             public static int Overrun;
             public static int RxOver;
             public static int RxParity;
@@ -45,6 +48,7 @@ public class Modbus
             public static int BytesMissing;
             public static int IdMissing;
             public static int FcMissing;
+            public static int CountInvalid;
         }
     }
 
@@ -64,6 +68,12 @@ public class Modbus
             case FunctionCode.WriteMultiRegisters:
                 break;
             case FunctionCode.Diagnostic:
+                break;
+            case FunctionCode.ErrorReadRegisters:
+                break;
+            case FunctionCode.ErrorWriteSingleRegister:
+                break;
+            case FunctionCode.ErrorWriteMultiRegisters:
                 break;
             default:
                 isValid = false;
@@ -127,36 +137,103 @@ public class Modbus
     {
         public readonly int SlaveId;
         public readonly FunctionCode Fc;
+
         public int _sysTick;
         public int _timeOut;
+        public System.Timers.Timer TimOutTimer;
+        public int NumberOfBytesToRead;
+        public int PayloadBytesToRead;
+        public byte RespondFc;
+        public byte RespondSlaveID;
 
-        public byte[] Buffer;
+        public byte[] ReceivedData;
     
         public Request(byte[] data) // Contructor
         {
             SlaveId = (int) data[0];
             Fc = (FunctionCode) data[1];
-            Buffer = data;
-
-            int len = GetNumberOfBytesToRead(Fc);
-         
+       
+            NumberOfBytesToRead = GetNumberOfBytesToRead(ref data);
+            PayloadBytesToRead = NumberOfBytesToRead - 2; // Without Id and function code
 
             _sysTick = get_system_tick();
             _timeOut = TimeoutCalculate(SPort.BaudRate, data.Length, 100);
+
+            //Timeout with timer, 
+            TimOutTimer = new System.Timers.Timer();
+            TimOutTimer.Elapsed += new ElapsedEventHandler(OnTimedEvent);
+            TimOutTimer.Interval = _timeOut;
+            TimOutTimer.Enabled = false; // Enable here timeout
+
             QRequests.Enqueue(this); //Add to queue
+        }
+
+        private static void OnTimedEvent(object source, ElapsedEventArgs e)
+        {
+            Console.WriteLine("Request TimeOut!"); 
         }
     }
 
-    public static int GetNumberOfBytesToRead(FunctionCode fc)
+
+    public static int GetNumberOfBytesToRead(ref byte[] req) //req = request frame
     {
         int size = 0;
-        if (fc == FunctionCode.Diagnostic)
+
+        switch ((FunctionCode)req[1])
         {
-            size = 8; // 8 = ID+FC+ 4 data bytes + crc_H, crc_L
+            case FunctionCode.ReadRegisters:
+                size = 5 + req[5]*2;
+                break;
+            case FunctionCode.WriteSingleRegister:
+                break;
+            case FunctionCode.WriteMultiRegisters:
+                break;
+            case FunctionCode.Diagnostic:
+                size = 8;
+                break;
+            case FunctionCode.ErrorReadRegisters:
+                break;
+            case FunctionCode.ErrorWriteSingleRegister:
+                break;
+            case FunctionCode.ErrorWriteMultiRegisters:
+                break;
         }
+
         return size;
     }
 
+
+
+    bool IsHeaderAvailable(byte slaveID, byte[] dataIn, byte size)
+    {
+        bool isHeaderDetected = false;
+        byte index = 0;
+
+        for (index = 0; index < size; index++)
+        {
+            if (dataIn[index] == slaveID)
+            {
+                index++;
+                if (IsFunctionCodeValid(dataIn[index]) == true)
+                {
+                    break;
+                }
+            }
+        }
+        return isHeaderDetected;
+    }
+
+
+
+
+    enum ParseState
+    {
+        SlaveId = 0,
+        FunctionCode,
+        Payload,
+    }
+
+    ParseState parseState= ParseState.SlaveId;
 
     private void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
     {
@@ -164,36 +241,117 @@ public class Modbus
         // string data = sp.ReadExisting();
 
         byte[] dataIn = new byte[sp.BytesToRead];
-        sp.Read(dataIn, 0, dataIn.Length);    //Read all available bytes
+        string str = "";
 
-        Modbus.Counters.BytesReceived += dataIn.Length; //Update Rx Counter
-
-        string str = ByteArrayToString(dataIn, OutputFormat.X2);
-
-
-        if (IsFrameValid((byte) 0x09, ref dataIn) == true)
+        if (QRequests.Count > 0) //Check if there is any Requests
         {
-            str += " Frame is Valid.";
-
-            if (QRequests.Count > 0) //Check if there is any requests in queue
+            Request req = QRequests.Peek(); // Get firts item in queue , but don't remove from queue 
+            
+            if (parseState == ParseState.SlaveId)
             {
-                Request req = QRequests.Peek(); // Get firts item in queue , but don't remove from queue 
+                //SlaveID detect
+                while (sp.BytesToRead > 0)
+                {
+                    if ((byte)sp.ReadByte() == req.SlaveId)
+                    {
+                        req.RespondSlaveID = (byte) req.SlaveId;
+                        parseState = ParseState.FunctionCode;
+                        break;
+                    }
+                }
+            }
 
-                int delay = get_system_tick() - req._sysTick;
-                str += " Packed Dequeue, Delay: " + delay.ToString();
-                QRequests.Dequeue(); //Remove first item from queue
-            }
-            else
+            //Check Fc
+            while ((sp.BytesToRead > 0) && (parseState == ParseState.FunctionCode) )
             {
-                str += " Not Requested";
+                byte tempFc = (byte) sp.ReadByte();
+
+                if (IsFunctionCodeValid(tempFc) == true)
+                {
+                    req.RespondFc = tempFc;
+
+                    switch ( (FunctionCode) tempFc )
+                    {
+                        case FunctionCode.ReadRegisters:
+                            req.PayloadBytesToRead = req.NumberOfBytesToRead - 2;
+                            break;
+                        case FunctionCode.WriteSingleRegister:
+                            req.PayloadBytesToRead = 6;
+                            break;
+                        case FunctionCode.WriteMultiRegisters:
+                            req.PayloadBytesToRead = 6;
+                            break;
+                        case FunctionCode.Diagnostic:
+                            req.PayloadBytesToRead = 6;
+                            break;
+                        case FunctionCode.ErrorReadRegisters:
+                            req.PayloadBytesToRead = 3;
+                            break;
+                        case FunctionCode.ErrorWriteSingleRegister:
+                            req.PayloadBytesToRead = 3;
+                            break;
+                        case FunctionCode.ErrorWriteMultiRegisters:
+                            req.PayloadBytesToRead = 3;
+                            break;
+                    }
+                    parseState = ParseState.Payload;
+                }
+                else
+                {
+                    parseState = ParseState.SlaveId;
+                }
             }
+            
+
+
+            //Check if all Payload data available
+            if (parseState == ParseState.Payload)
+            {
+                if (req.PayloadBytesToRead <= sp.BytesToRead)
+                {
+                    byte[] payload = new byte[req.PayloadBytesToRead + 2];
+                    payload[0] = req.RespondSlaveID;
+                    payload[1] = req.RespondFc;
+
+                    sp.Read(payload, 2, req.PayloadBytesToRead); //Read only bytes needed
+                    Modbus.Counters.BytesReceived += payload.Length + 2; //Update Rx Counter
+                    str = ByteArrayToString(payload, OutputFormat.X2);
+
+                    //Parse frame
+                    if (IsFrameValid((byte)0x09, ref payload) == true)
+                    {
+                        str += " Frame is Valid.";
+
+                        int delay = get_system_tick() - req._sysTick;
+                        str += " Packed Dequeue, Delay: " + delay.ToString();
+                        QRequests.Dequeue(); //Remove first item from queue
+                    }
+                    else
+                    {
+                        str += "Invalid Frame";
+                    }
+
+                    OnRxDataReceived(new RxDataReceivedEventArgs { RxData = str }); //Rise event
+                }
+                else
+                {
+                    //Don't parse data if not all data reveived
+                    str += "Not all Data received";
+                    OnRxDataReceived(new RxDataReceivedEventArgs { RxData = str }); //Rise event
+                }
+
+            }
+
+
         }
         else
         {
-            str += "Invalid Frame";
+            sp.Read(dataIn, 0, dataIn.Length);    //Read all available bytes
+            Modbus.Counters.BytesReceived += dataIn.Length; //Update Rx Counter
+            str = ByteArrayToString(dataIn, OutputFormat.X2);
+            str += "Not requested data";
+            OnRxDataReceived(new RxDataReceivedEventArgs { RxData = str }); //Rise event
         }
-
-        OnRxDataReceived(new RxDataReceivedEventArgs { RxData = str }); //Rise event
     }
 
 
@@ -203,11 +361,67 @@ public class Modbus
         IsFcValid
     }
 
-
-    bool IsReadRegFrameValid()
+    bool ErrorUpdate(ref int err)
     {
+        err++;
+        return false;
+    }
+
+    bool IsReadRegistersFrameValid(int slaveId, ref byte[] dataIn, int dataSize)
+    {
+        //   0   1     2       3        4                               
+        //  ID 0x03, COUNT, DATA0_H, DATA0_L ... DATAN_H, DATAN_L, CRC_H, CRC_L
+        //  if COUNT value = 2, TOTAL = 5 + 2 = 7 Bytes
+
+        
         bool isValid = false;
-        return isValid;
+
+
+        //0. Slave id check
+        if (dataIn[0] != (byte) slaveId)
+        {
+            return isValid = ErrorUpdate(ref Counters.Errors.IdMissing);
+        }
+
+        //1. function code check
+        if ((FunctionCode)dataIn[1] != FunctionCode.ReadRegisters)
+        {
+            return isValid = ErrorUpdate(ref Counters.Errors.FcMissing);
+        }
+
+
+        //2. Count check
+        if (dataIn[2] < 2)
+        {
+            return isValid = ErrorUpdate(ref Counters.Errors.CountInvalid);
+        }
+
+        //2.1 Count check, Count should be even number.
+        if ( (dataIn[2] % 2 ) != 0)
+        {
+            return isValid = ErrorUpdate(ref Counters.Errors.CountInvalid);
+        }
+
+
+        //3 Data size check
+        const int minSize = 5; //  ID + 0x03 + COUNT + CRCH + CRCL = 5 Bytes.
+        int lenght = minSize + dataIn[2]; // Bytes needed
+
+        if (lenght > dataSize)
+        {
+            return isValid = ErrorUpdate(ref Counters.Errors.FrameSize);
+        }
+
+        //4 Check CRC
+        byte crc_H = 0x12;
+        byte crc_L = 0x34;
+
+        if ((dataIn[(byte)lenght-2] != crc_H) || (dataIn[(byte)lenght - 1] != crc_L))
+        {
+            return isValid = ErrorUpdate(ref Counters.Errors.Crc);
+        }
+
+        return isValid = true;
     }
 
     bool IsWriteSingleRegFrameValid()
@@ -229,8 +443,7 @@ public class Modbus
         //    ID 0x08, DUMMY, DUMMY, DUMMY, DUMMY, CRC_H, CRC_L
        
         bool isValid = false;
-
-        const int Lenght = 8;
+        const int lenght = 8;
 
         //0. Slave id checked before calling this function.
 
@@ -241,7 +454,7 @@ public class Modbus
         }
 
         //2. Buffer size check
-        if (dataIn.Length < Lenght)
+        if (dataIn.Length < lenght)
         {
             return isValid = false;
         }
@@ -252,13 +465,7 @@ public class Modbus
         byte crc_H = 0x12;
         byte crc_L = 0x34;
 
-        if (dataIn[6] != crc_H)
-        {
-            Counters.Errors.Crc++;
-            return isValid = false;
-        }
-
-        if (dataIn[7] != crc_L)
+        if ( (dataIn[6] != crc_H)  || (dataIn[7] != crc_L))
         {
             Counters.Errors.Crc++;
             return isValid = false;
@@ -288,13 +495,12 @@ public class Modbus
             return isFrameValid = false;
         }
 
-
         //2. Check Function/Error Code
         switch((FunctionCode)dataIn[1])
         {
             //Function codes
             case FunctionCode.ReadRegisters:
-                isFrameValid = IsReadRegFrameValid();
+                isFrameValid = IsReadRegistersFrameValid(slaveId, ref dataIn, dataIn.Length);
                 break;
             case FunctionCode.WriteSingleRegister:
                 break;
@@ -338,7 +544,7 @@ public class Modbus
         return isFrameReady;
     }
 
-    public static byte[] ModbusPing(int slaveId, int data)
+    public static byte[] RequestPing(int slaveId, int data)
     {
         //  ID + 0x08 + SUB_H + SUB_L + DATA_H + DATA_L + CRC_H + CRC_L = 8 Bytes
         byte[] requestData = new byte[8];
@@ -356,6 +562,28 @@ public class Modbus
         requestData[7] = crc[1];
 
         return requestData;
+    }
+
+    public static byte[] RequestReadRegisters(int slaveId, int startAddress, int numberOfRegisters)
+    {
+        //  Request: ID + 0x03 + AddressH + AddressL + NumberH + NumberL + CRC_H + CRC_L = 8 Bytes
+        byte[] buf = new byte[8];
+
+        buf[0] = (byte)slaveId;
+        buf[1] = (byte)FunctionCode.ReadRegisters;
+
+        buf[2] = (byte)(startAddress >> 8);
+        buf[3] = (byte)(startAddress);
+
+        buf[4] = (byte)(numberOfRegisters >> 8);
+        buf[5] = (byte)(numberOfRegisters);
+
+        byte[] crc = Calc_CRC(buf);
+
+        buf[6] = crc[0];
+        buf[7] = crc[1];
+
+        return buf;
     }
 
     public class RxDataReceivedEventArgs : EventArgs
@@ -394,7 +622,7 @@ public class Modbus
             SPort.Open();
         }
 
-        byte[] ping_frame = Modbus.ModbusPing(9, 0xABCD);
+        byte[] ping_frame = Modbus.RequestPing(9, 0xABCD);
 
         SPort.Write(data, 0, size);
 
@@ -420,7 +648,6 @@ public class Modbus
 
     private static void ErrorReceivedHandler(object sender, SerialErrorReceivedEventArgs e)
     {
-
 
     }
 
